@@ -1,0 +1,310 @@
+use niri_ipc::socket::Socket;
+use niri_ipc::{Action, Event, Request, Response, Window, WorkspaceReferenceArg};
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::fs;
+use std::process::Command;
+
+// Config contains icon mappings for programs and is loaded from a toml file.
+#[derive(Deserialize, Debug)]
+struct Config {
+    matches: HashMap<String, String>,
+    #[serde(default)]
+    default: Option<String>,
+}
+
+impl Config {
+    fn merge(mut self, other: Config) -> Self {
+        self.matches.extend(other.matches);
+        self.default = other.default.or(self.default);
+        self
+    }
+
+    fn lowercase_keys(mut self) -> Self {
+        self.matches = self
+            .matches
+            .into_iter()
+            .map(|(k, v)| (k.to_lowercase(), v))
+            .collect();
+        self
+    }
+}
+
+const DEFAULT_CONFIG: &str = include_str!("../icons.toml");
+
+const CONFIG_FILE_PATH: &str = "~/.config/niri/autoname-workspaces.toml";
+
+fn icon_for_window(cfg: &Config, window: &Window) -> String {
+    let Some(app_id) = &window.app_id else {
+        log::warn!("Window doesn't have an app_id: {:?}", window);
+        return cfg.default.clone().unwrap_or_default();
+    };
+
+    let app_id_lower = app_id.to_lowercase();
+
+    cfg.matches
+        .get(&app_id_lower)
+        .cloned()
+        .or_else(|| {
+            log::warn!("No icon configured for app_id='{}'", app_id);
+            cfg.default.clone()
+        })
+        .unwrap_or_default()
+}
+
+fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn std::error::Error>> {
+    let Response::Workspaces(workspaces) = socket.send(Request::Workspaces)?? else {
+        return Err("Expected Workspaces response".into());
+    };
+
+    // Store workspace info: (custom_name, icons)
+    let mut ws_info: HashMap<_, _> = workspaces
+        .iter()
+        .map(|ws| {
+            let custom_name = ws.name.as_ref().map(|n| {
+                n.find(": ")
+                    .map(|pos| n[..pos].to_string())
+                    .unwrap_or_else(|| n.clone())
+            });
+            (ws.id, (custom_name, String::new()))
+        })
+        .collect();
+
+    let Response::Windows(mut windows) = socket.send(Request::Windows)?? else {
+        return Err("Expected Windows response".into());
+    };
+
+    // Sort windows by their position in the scrolling layout
+    windows.sort_by_key(|w| w.layout.pos_in_scrolling_layout.map(|p| p.0));
+
+    // Collect icons
+    for w in windows
+        .iter()
+        .filter_map(|w| w.workspace_id.map(|id| (id, w)))
+    {
+        let icon = icon_for_window(cfg, w.1);
+        if let Some((_, icons)) = ws_info.get_mut(&w.0) {
+            icons.push(' ');
+            icons.push_str(&icon);
+        }
+    }
+
+    // Set workspace names
+    for (ws_id, (custom_name, icons)) in &ws_info {
+        let icons = icons.trim();
+        let reference = Some(WorkspaceReferenceArg::Id(*ws_id));
+
+        let action = if icons.is_empty() && custom_name.is_none() {
+            Action::UnsetWorkspaceName { reference }
+        } else {
+            let default_name = ws_id.to_string();
+            let name_prefix = custom_name.as_ref().unwrap_or(&default_name);
+            Action::SetWorkspaceName {
+                name: format!("{}: {}", name_prefix, icons),
+                workspace: reference,
+            }
+        };
+        socket.send(Request::Action(action))??;
+    }
+
+    Ok(())
+}
+
+fn undo_rename_workspaces(socket: &mut Socket) -> Result<(), Box<dyn std::error::Error>> {
+    let Response::Workspaces(workspaces) = socket.send(Request::Workspaces)?? else {
+        return Err("Expected Workspaces response".into());
+    };
+
+    for ws in workspaces {
+        let custom_name = ws
+            .name
+            .as_ref()
+            .and_then(|n| n.find(": ").map(|pos| &n[..pos]));
+        let reference = Some(WorkspaceReferenceArg::Id(ws.id));
+
+        let action = if let Some(name) = custom_name {
+            Action::SetWorkspaceName {
+                name: name.to_string(),
+                workspace: reference,
+            }
+        } else {
+            Action::UnsetWorkspaceName { reference }
+        };
+        socket.send(Request::Action(action))??;
+    }
+
+    Ok(())
+}
+
+fn rename_current_workspace(
+    socket: &mut Socket,
+    cfg: &Config,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let Response::Workspaces(workspaces) = socket.send(Request::Workspaces)?? else {
+        return Err("Expected Workspaces response".into());
+    };
+
+    let current_ws = workspaces
+        .iter()
+        .find(|ws| ws.is_focused)
+        .ok_or("No focused workspace found")?;
+
+    let Response::Windows(windows) = socket.send(Request::Windows)?? else {
+        return Err("Expected Windows response".into());
+    };
+
+    // Build icons string for current workspace
+    let icons: String = windows
+        .iter()
+        .filter(|w| w.workspace_id == Some(current_ws.id))
+        .map(|w| icon_for_window(cfg, w))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    // Launch zenity to get user input
+    let output = Command::new("zenity")
+        .args(&[
+            "--entry",
+            "--title=Rename Workspace",
+            "--text=Enter new workspace name:",
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        return Err("User cancelled or zenity failed".into());
+    }
+
+    let name = String::from_utf8(output.stdout)?.trim().to_string();
+
+    if name.is_empty() {
+        return Err("Empty name provided".into());
+    }
+
+    // Set workspace name
+    let full_name = if icons.is_empty() {
+        name
+    } else {
+        format!("{}: {}", name, icons)
+    };
+
+    socket.send(Request::Action(Action::SetWorkspaceName {
+        name: full_name,
+        workspace: Some(WorkspaceReferenceArg::Id(current_ws.id)),
+    }))??;
+
+    Ok(())
+}
+
+fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
+    let mut config: Config = toml::from_str(DEFAULT_CONFIG)?;
+    let expanded_path = shellexpand::tilde(CONFIG_FILE_PATH);
+
+    match fs::read_to_string(expanded_path.as_ref()) {
+        Ok(contents) => {
+            let user_config = toml::from_str::<Config>(&contents).map_err(|e| {
+                format!("Failed to parse user config at {}: {}", CONFIG_FILE_PATH, e)
+            })?;
+            config = config.merge(user_config);
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!("Warning: User config not found at {}", CONFIG_FILE_PATH);
+        }
+        Err(e) => return Err(e.into()),
+    }
+    Ok(config.lowercase_keys())
+}
+
+fn print_help() {
+    print!(
+        "\
+niri-autoname-workspaces
+
+Automatically names niri workspaces to show icons for open windows.
+
+USAGE:
+  niri-autoname-workspaces
+  niri-autoname-workspaces [COMMAND]
+
+COMMANDS:
+  rename    Interactively rename the current workspace
+  --help    Print this help message
+  -h        Print this help message
+
+CONFIG:
+  Config file: {}
+  Configure app_id to icon mappings in TOML format
+",
+        CONFIG_FILE_PATH
+    );
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Check for help flag
+    if std::env::args().nth(1).as_deref() == Some("--help")
+        || std::env::args().nth(1).as_deref() == Some("-h")
+    {
+        print_help();
+        return Ok(());
+    }
+
+    let config = load_config()?;
+
+    let mut cmd_socket = Socket::connect()?;
+
+    // Check for "rename" argument
+    if std::env::args().nth(1).as_deref() == Some("rename") {
+        return rename_current_workspace(&mut cmd_socket, &config);
+    }
+
+    let mut subscribe_socket = Socket::connect()?;
+
+    // Set up Ctrl+C handler to cleanup and exit
+    ctrlc::set_handler(move || {
+        println!("cleanup");
+        if let Ok(mut socket) = Socket::connect() {
+            let _ = undo_rename_workspaces(&mut socket);
+        }
+        std::process::exit(0);
+    })?;
+
+    rename_workspaces(&config, &mut cmd_socket)?;
+
+    let Ok(Response::Handled) = subscribe_socket.send(Request::EventStream)? else {
+        return Err("Expected Handled response".into());
+    };
+
+    let mut read_event = subscribe_socket.read_events();
+    while let Ok(event) = read_event() {
+        if matches!(
+            event,
+            Event::WindowOpenedOrChanged { .. } | Event::WindowClosed { .. }
+        ) {
+            rename_workspaces(&config, &mut cmd_socket)?;
+        }
+    }
+
+    // Cleanup on normal exit
+    Socket::connect()
+        .ok()
+        .map(|mut s| undo_rename_workspaces(&mut s));
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_icons_toml() {
+        let config: Config = toml::from_str(DEFAULT_CONFIG).expect("Failed to parse icons.toml");
+
+        // Verify some known entries exist
+        assert!(config.matches.contains_key("firefox"));
+        assert!(config.matches.contains_key("chromium"));
+        assert!(config.matches.contains_key("alacritty"));
+
+        // Verify default match is set
+        assert_eq!(config.default, Some("*".to_string()));
+    }
+}
