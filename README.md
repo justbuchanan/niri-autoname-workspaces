@@ -1,6 +1,6 @@
 # niri-autoname-workspaces [![Nix CI](https://github.com/justbuchanan/niri-autoname-workspaces/actions/workflows/nix.yml/badge.svg)](https://github.com/justbuchanan/niri-autoname-workspaces/actions/workflows/nix.yml)
 
-This program automatically updates [niri](https://github.com/YaLTeR/niri) workspace names to show icons for running programs in your bar.
+This program automatically updates [niri](https://github.com/YaLTeR/niri) workspace names to show icons for running programs in your bar. It can also apply a style (like bold or color) to the currently-focused window icon to visually show where you're at.
 
 ![screenshot](screenshot.png)
 
@@ -50,4 +50,4 @@ binds {
 
 `niri-autoname-workspaces` comes with a default config at [default_config.toml](./default_config.toml), however you can customize it by creating your own config file at `~/.config/niri/autoname-workspaces.toml`.
 
-Icon mappings for programs can be customized as well as the style of the currently-focused window icon. The currently-focused window icon can, for example, be displayed in a different color or size. See the default config file for more info.
+Icon mappings for programs can be customized as well as the style of the currently-focused window icon. See the default config file for more info.
