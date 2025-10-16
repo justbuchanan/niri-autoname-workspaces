@@ -32,6 +32,12 @@ Add this to your `~/.config/niri/config.kdl`:
 spawn-at-startup niri-autoname-workspaces
 ```
 
+Adding this config entry will tell niri to launch the program the next time it starts. To start running it now without restarting niri, do:
+
+```
+niri msg action spawn -- niri-autoname-workspaces
+```
+
 Optionally add a keyboard shortcut for renaming the current workspace:
 
 ```
