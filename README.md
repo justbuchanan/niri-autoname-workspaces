@@ -46,6 +46,8 @@ binds {
 }
 ```
 
-## Icon Customization
+## Customization
 
-`niri-autoname-workspaces` comes with a default icon set at [default_config.toml](./default_config.toml), however you can customize them by creating a config file at `~/.config/niri/autoname-workspaces.toml`.
+`niri-autoname-workspaces` comes with a default config at [default_config.toml](./default_config.toml), however you can customize it by creating your own config file at `~/.config/niri/autoname-workspaces.toml`.
+
+Icon mappings for programs can be customized as well as the style of the currently-focused window icon. The currently-focused window icon can, for example, be displayed in a different color or size. See the default config file for more info.
