@@ -1,9 +1,12 @@
 use niri_ipc::socket::Socket;
 use niri_ipc::{Action, Event, Request, Response, Window, Workspace, WorkspaceReferenceArg};
 use serde::Deserialize;
+use signal_hook::consts::signal::*;
+use signal_hook::iterator::Signals;
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
+use std::thread;
 
 // Config contains icon mappings for programs and is loaded from a toml file.
 #[derive(Deserialize, Debug)]
@@ -289,14 +292,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut subscribe_socket = Socket::connect()?;
 
-    // Set up Ctrl+C handler to cleanup and exit
-    ctrlc::set_handler(move || {
-        println!("cleanup");
-        if let Ok(mut socket) = Socket::connect() {
-            let _ = undo_rename_workspaces(&mut socket);
+    // Set up signal handler to cleanup on exit
+    let mut signals = Signals::new(&[SIGINT, SIGTERM, SIGHUP, SIGQUIT])?;
+    thread::spawn(move || {
+        for sig in signals.forever() {
+            println!("Received signal {:?}, cleaning up...", sig);
+            if let Ok(mut socket) = Socket::connect() {
+                let _ = undo_rename_workspaces(&mut socket);
+            }
+            std::process::exit(0);
         }
-        std::process::exit(0);
-    })?;
+    });
 
     rename_workspaces(&config, &mut cmd_socket)?;
 
@@ -318,9 +324,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Cleanup on normal exit
-    Socket::connect()
-        .ok()
-        .map(|mut s| undo_rename_workspaces(&mut s));
+
+    undo_rename_workspaces(&mut Socket::connect()?)?;
 
     Ok(())
 }

@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ctrlc = "3.4"
 log = "0.4.28"
 niri-ipc = "25.8.0"
 serde = "1.0.228"
 shellexpand = "3.1.1"
+signal-hook = "0.3"
 toml = "0.9.8"
