@@ -11,12 +11,17 @@ struct Config {
     matches: HashMap<String, String>,
     #[serde(default)]
     default: Option<String>,
+    #[serde(default)]
+    focused_format: Option<String>,
 }
+
+const DEFAULT_FOCUSED_FORMAT: &str = "{}";
 
 impl Config {
     fn merge(mut self, other: Config) -> Self {
         self.matches.extend(other.matches);
         self.default = other.default.or(self.default);
+        self.focused_format = other.focused_format.or(self.focused_format);
         self
     }
 
@@ -93,7 +98,16 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
         .iter()
         .filter_map(|w| w.workspace_id.map(|id| (id, w)))
     {
-        let icon = icon_for_window(cfg, w.1);
+        let mut icon = icon_for_window(cfg, w.1);
+        // Apply focused format if this window is focused
+        if w.1.is_focused {
+            let format = cfg
+                .focused_format
+                .as_ref()
+                .map(String::as_str)
+                .unwrap_or(DEFAULT_FOCUSED_FORMAT);
+            icon = format.replace("{}", &icon);
+        }
         if let Some((_, icons, _)) = ws_info.get_mut(&w.0) {
             icons.push(' ');
             icons.push_str(&icon);
@@ -293,6 +307,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::WindowOpenedOrChanged { .. }
                 | Event::WindowClosed { .. }
                 | Event::WindowLayoutsChanged { .. }
+                | Event::WindowFocusChanged { .. }
         ) {
             rename_workspaces(&config, &mut cmd_socket)?;
         }
