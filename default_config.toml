@@ -9,7 +9,9 @@ default = "*"
 # Use {} as a placeholder for where the icon should go.
 # If you're using waybar, you can use pango markup as below. If you're using a
 # different bar, you'll need to see what markup syntax it supports, if any.
-focused_format = "<span foreground='#0096FF'><big>{}</big></span>"
+focused_format = "<big>{}</big>"
+# note that you can also color the focused icon with:
+# focused_format = "<span foreground='#0096FF'><big>{}</big></span>"
 
 [matches]
 "file-roller" = ""
