@@ -4,6 +4,8 @@ This program automatically updates [niri](https://github.com/YaLTeR/niri) worksp
 
 ![screenshot](screenshot.png)
 
+See a demo video on [reddit](https://www.reddit.com/r/unixporn/comments/1o7rzdl/oc_niri_addon_for_showing_window_icons_in_your_bar)
+
 It's very similar in function to [workstyle](https://github.com/pierrechevalier83/workstyle/tree/main) and [swayest_workstyle](https://github.com/Lyr-7D1h/swayest_workstyle), but designed to work with the niri window manager.
 
 ## Installation
