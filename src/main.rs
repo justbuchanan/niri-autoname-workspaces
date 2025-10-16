@@ -21,7 +21,9 @@ const DEFAULT_FOCUSED_FORMAT: &str = "{}";
 impl Config {
     fn merge(mut self, other: Config) -> Self {
         if let Some(other_matches) = other.matches {
-            self.matches.get_or_insert_with(HashMap::new).extend(other_matches);
+            self.matches
+                .get_or_insert_with(HashMap::new)
+                .extend(other_matches);
         }
         self.default = other.default.or(self.default);
         self.focused_format = other.focused_format.or(self.focused_format);
@@ -31,9 +33,7 @@ impl Config {
     fn lowercase_keys(mut self) -> Self {
         self.matches = self
             .matches
-            .map(|m| m.into_iter()
-                .map(|(k, v)| (k.to_lowercase(), v))
-                .collect());
+            .map(|m| m.into_iter().map(|(k, v)| (k.to_lowercase(), v)).collect());
         self
     }
 }
