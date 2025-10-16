@@ -290,7 +290,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     while let Ok(event) = read_event() {
         if matches!(
             event,
-            Event::WindowOpenedOrChanged { .. } | Event::WindowClosed { .. }
+            Event::WindowOpenedOrChanged { .. }
+                | Event::WindowClosed { .. }
+                | Event::WindowLayoutsChanged { .. }
         ) {
             rename_workspaces(&config, &mut cmd_socket)?;
         }
