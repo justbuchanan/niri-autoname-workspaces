@@ -8,7 +8,8 @@ use std::process::Command;
 // Config contains icon mappings for programs and is loaded from a toml file.
 #[derive(Deserialize, Debug)]
 struct Config {
-    matches: HashMap<String, String>,
+    #[serde(default)]
+    matches: Option<HashMap<String, String>>,
     #[serde(default)]
     default: Option<String>,
     #[serde(default)]
@@ -19,7 +20,9 @@ const DEFAULT_FOCUSED_FORMAT: &str = "{}";
 
 impl Config {
     fn merge(mut self, other: Config) -> Self {
-        self.matches.extend(other.matches);
+        if let Some(other_matches) = other.matches {
+            self.matches.get_or_insert_with(HashMap::new).extend(other_matches);
+        }
         self.default = other.default.or(self.default);
         self.focused_format = other.focused_format.or(self.focused_format);
         self
@@ -28,9 +31,9 @@ impl Config {
     fn lowercase_keys(mut self) -> Self {
         self.matches = self
             .matches
-            .into_iter()
-            .map(|(k, v)| (k.to_lowercase(), v))
-            .collect();
+            .map(|m| m.into_iter()
+                .map(|(k, v)| (k.to_lowercase(), v))
+                .collect());
         self
     }
 }
@@ -63,7 +66,8 @@ fn icon_for_window(cfg: &Config, window: &Window) -> String {
     let app_id_lower = app_id.to_lowercase();
 
     cfg.matches
-        .get(&app_id_lower)
+        .as_ref()
+        .and_then(|m| m.get(&app_id_lower))
         .cloned()
         .or_else(|| {
             log::warn!("No icon configured for app_id='{}'", app_id);
@@ -331,9 +335,10 @@ mod tests {
             toml::from_str(DEFAULT_CONFIG).expect("Failed to parse default_config.toml");
 
         // Verify some known entries exist
-        assert!(config.matches.contains_key("firefox"));
-        assert!(config.matches.contains_key("chromium"));
-        assert!(config.matches.contains_key("alacritty"));
+        let matches = config.matches.as_ref().expect("matches should be present");
+        assert!(matches.contains_key("firefox"));
+        assert!(matches.contains_key("chromium"));
+        assert!(matches.contains_key("alacritty"));
 
         // Verify default match is set
         assert_eq!(config.default, Some("*".to_string()));
