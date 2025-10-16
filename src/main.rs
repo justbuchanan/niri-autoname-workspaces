@@ -72,12 +72,12 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
         return Err("Expected Workspaces response".into());
     };
 
-    // Store workspace info: (custom_name, icons)
+    // Store workspace info: (custom_name, icons, idx)
     let mut ws_info: HashMap<_, _> = workspaces
         .iter()
         .map(|ws| {
             let custom_name = get_workspace_custom_name(ws);
-            (ws.id, (custom_name, String::new()))
+            (ws.id, (custom_name, String::new(), ws.idx))
         })
         .collect();
 
@@ -94,14 +94,14 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
         .filter_map(|w| w.workspace_id.map(|id| (id, w)))
     {
         let icon = icon_for_window(cfg, w.1);
-        if let Some((_, icons)) = ws_info.get_mut(&w.0) {
+        if let Some((_, icons, _)) = ws_info.get_mut(&w.0) {
             icons.push(' ');
             icons.push_str(&icon);
         }
     }
 
     // Set workspace names
-    for (ws_id, (custom_name, icons)) in &ws_info {
+    for (ws_id, (custom_name, icons, idx)) in &ws_info {
         let icons = icons.trim();
         let reference = Some(WorkspaceReferenceArg::Id(*ws_id));
 
@@ -113,7 +113,7 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
                 workspace: reference,
             }
         } else {
-            let default_name = ws_id.to_string();
+            let default_name = idx.to_string();
             let name_prefix = custom_name.as_ref().unwrap_or(&default_name);
             Action::SetWorkspaceName {
                 name: format!("{}: {}", name_prefix, icons),
@@ -220,7 +220,7 @@ fn load_config() -> Result<Config, Box<dyn std::error::Error>> {
             config = config.merge(user_config);
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            eprintln!("Warning: User config not found at {}", CONFIG_FILE_PATH);
+            log::warn!("Warning: User config not found at {}", CONFIG_FILE_PATH);
         }
         Err(e) => return Err(e.into()),
     }
