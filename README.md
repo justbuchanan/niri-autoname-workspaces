@@ -48,4 +48,4 @@ binds {
 
 ## Icon Customization
 
-`niri-autoname-workspaces` comes with a default icon set at [icons.toml](./icons.toml), however you can customize them by creating a config file at `~/.config/niri/autoname-workspaces.toml`.
+`niri-autoname-workspaces` comes with a default icon set at [default_config.toml](./default_config.toml), however you can customize them by creating a config file at `~/.config/niri/autoname-workspaces.toml`.

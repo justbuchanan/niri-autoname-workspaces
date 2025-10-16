@@ -35,7 +35,7 @@ impl Config {
     }
 }
 
-const DEFAULT_CONFIG: &str = include_str!("../icons.toml");
+const DEFAULT_CONFIG: &str = include_str!("../default_config.toml");
 
 const CONFIG_FILE_PATH: &str = "~/.config/niri/autoname-workspaces.toml";
 
@@ -327,7 +327,8 @@ mod tests {
 
     #[test]
     fn test_load_icons_toml() {
-        let config: Config = toml::from_str(DEFAULT_CONFIG).expect("Failed to parse icons.toml");
+        let config: Config =
+            toml::from_str(DEFAULT_CONFIG).expect("Failed to parse default_config.toml");
 
         // Verify some known entries exist
         assert!(config.matches.contains_key("firefox"));
