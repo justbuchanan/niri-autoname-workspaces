@@ -1,5 +1,5 @@
 use niri_ipc::socket::Socket;
-use niri_ipc::{Action, Event, Request, Response, Window, WorkspaceReferenceArg};
+use niri_ipc::{Action, Event, Request, Response, Window, Workspace, WorkspaceReferenceArg};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
@@ -34,6 +34,21 @@ const DEFAULT_CONFIG: &str = include_str!("../icons.toml");
 
 const CONFIG_FILE_PATH: &str = "~/.config/niri/autoname-workspaces.toml";
 
+fn get_workspace_custom_name(workspace: &Workspace) -> Option<String> {
+    workspace.name.as_ref().and_then(|n| {
+        let name = n
+            .find(": ")
+            .map(|pos| n[..pos].to_string())
+            .unwrap_or_else(|| n.clone());
+        // Only consider it a custom name if it contains at least one letter
+        if name.chars().any(|c| c.is_alphabetic()) {
+            Some(name)
+        } else {
+            None
+        }
+    })
+}
+
 fn icon_for_window(cfg: &Config, window: &Window) -> String {
     let Some(app_id) = &window.app_id else {
         log::warn!("Window doesn't have an app_id: {:?}", window);
@@ -61,11 +76,7 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
     let mut ws_info: HashMap<_, _> = workspaces
         .iter()
         .map(|ws| {
-            let custom_name = ws.name.as_ref().map(|n| {
-                n.find(": ")
-                    .map(|pos| n[..pos].to_string())
-                    .unwrap_or_else(|| n.clone())
-            });
+            let custom_name = get_workspace_custom_name(ws);
             (ws.id, (custom_name, String::new()))
         })
         .collect();
@@ -96,6 +107,11 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
 
         let action = if icons.is_empty() && custom_name.is_none() {
             Action::UnsetWorkspaceName { reference }
+        } else if icons.is_empty() {
+            Action::SetWorkspaceName {
+                name: custom_name.clone().unwrap(),
+                workspace: reference,
+            }
         } else {
             let default_name = ws_id.to_string();
             let name_prefix = custom_name.as_ref().unwrap_or(&default_name);
@@ -116,15 +132,12 @@ fn undo_rename_workspaces(socket: &mut Socket) -> Result<(), Box<dyn std::error:
     };
 
     for ws in workspaces {
-        let custom_name = ws
-            .name
-            .as_ref()
-            .and_then(|n| n.find(": ").map(|pos| &n[..pos]));
+        let custom_name = get_workspace_custom_name(&ws);
         let reference = Some(WorkspaceReferenceArg::Id(ws.id));
 
         let action = if let Some(name) = custom_name {
             Action::SetWorkspaceName {
-                name: name.to_string(),
+                name,
                 workspace: reference,
             }
         } else {
