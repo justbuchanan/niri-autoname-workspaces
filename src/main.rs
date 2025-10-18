@@ -98,7 +98,7 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
     };
 
     // Sort windows by their position in the scrolling layout
-    windows.sort_by_key(|w| w.layout.pos_in_scrolling_layout.map(|p| p.0));
+    windows.sort_by_key(|w| w.layout.pos_in_scrolling_layout);
 
     // Collect icons
     for w in windows
