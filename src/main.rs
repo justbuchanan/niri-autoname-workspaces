@@ -273,6 +273,8 @@ CONFIG:
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
     // Check for help flag
     if std::env::args().nth(1).as_deref() == Some("--help")
         || std::env::args().nth(1).as_deref() == Some("-h")
