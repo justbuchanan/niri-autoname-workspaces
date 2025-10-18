@@ -3,3 +3,5 @@
 
 # nix output
 /result
+
+/.direnv
