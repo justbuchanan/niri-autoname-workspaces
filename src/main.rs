@@ -210,10 +210,6 @@ fn rename_current_workspace(
 
     let name = String::from_utf8(output.stdout)?.trim().to_string();
 
-    if name.is_empty() {
-        return Err("Empty name provided".into());
-    }
-
     // Set workspace name
     let full_name = if icons.is_empty() {
         name
