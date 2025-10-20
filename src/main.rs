@@ -253,12 +253,8 @@ Automatically names niri workspaces to show icons for open windows.
 
 USAGE:
   niri-autoname-workspaces
-  niri-autoname-workspaces [COMMAND]
-
-COMMANDS:
-  rename    Interactively rename the current workspace
-  --help    Print this help message
-  -h        Print this help message
+  niri-autoname-workspaces rename
+  niri-autoname-workspaces --help
 
 CONFIG:
   Config file: {}
