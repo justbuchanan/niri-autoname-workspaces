@@ -324,6 +324,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 | Event::WindowClosed { .. }
                 | Event::WindowLayoutsChanged { .. }
                 | Event::WindowFocusChanged { .. }
+                | Event::WorkspacesChanged { .. }
         ) {
             rename_workspaces(&config, &mut cmd_socket)?;
         }
