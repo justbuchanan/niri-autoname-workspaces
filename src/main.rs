@@ -17,9 +17,12 @@ struct Config {
     default: Option<String>,
     #[serde(default)]
     focused_format: Option<String>,
+    #[serde(default)]
+    format: Option<String>,
 }
 
 const DEFAULT_FOCUSED_FORMAT: &str = "{}";
+const DEFAULT_FORMAT: &str = "{}";
 
 impl Config {
     fn merge(mut self, other: Config) -> Self {
@@ -30,6 +33,7 @@ impl Config {
         }
         self.default = other.default.or(self.default);
         self.focused_format = other.focused_format.or(self.focused_format);
+        self.format = other.format.or(self.format);
         self
     }
 
@@ -60,7 +64,7 @@ fn get_workspace_custom_name(workspace: &Workspace) -> Option<String> {
     })
 }
 
-fn icon_for_window(cfg: &Config, window: &Window) -> String {
+fn get_raw_icon(cfg: &Config, window: &Window) -> String {
     let Some(app_id) = &window.app_id else {
         log::warn!("Window doesn't have an app_id: {:?}", window);
         return cfg.default.clone().unwrap_or_default();
@@ -77,6 +81,16 @@ fn icon_for_window(cfg: &Config, window: &Window) -> String {
             cfg.default.clone()
         })
         .unwrap_or_default()
+}
+
+fn format_icon(cfg: &Config, icon: &str, is_focused: bool) -> String {
+    let format = if is_focused {
+        cfg.focused_format.as_ref().map(String::as_str).unwrap_or(DEFAULT_FOCUSED_FORMAT)
+    } else {
+        cfg.format.as_ref().map(String::as_str).unwrap_or(DEFAULT_FORMAT)
+    };
+
+    format.replace("{}", icon)
 }
 
 fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn std::error::Error>> {
@@ -105,19 +119,14 @@ fn rename_workspaces(cfg: &Config, socket: &mut Socket) -> Result<(), Box<dyn st
         .iter()
         .filter_map(|w| w.workspace_id.map(|id| (id, w)))
     {
-        let mut icon = icon_for_window(cfg, w.1);
-        // Apply focused format if this window is focused
-        if w.1.is_focused {
-            let format = cfg
-                .focused_format
-                .as_ref()
-                .map(String::as_str)
-                .unwrap_or(DEFAULT_FOCUSED_FORMAT);
-            icon = format.replace("{}", &icon);
-        }
+        let raw_icon = get_raw_icon(cfg, w.1);
+        let formatted_icon = format_icon(cfg, &raw_icon, w.1.is_focused);
+        
         if let Some((_, icons, _)) = ws_info.get_mut(&w.0) {
-            icons.push(' ');
-            icons.push_str(&icon);
+            if !icons.is_empty() {
+                icons.push(' ');
+            }
+            icons.push_str(&formatted_icon);
         }
     }
 
@@ -191,7 +200,10 @@ fn rename_current_workspace(
     let icons: String = windows
         .iter()
         .filter(|w| w.workspace_id == Some(current_ws.id))
-        .map(|w| icon_for_window(cfg, w))
+        .map(|w| {
+            let raw_icon = get_raw_icon(cfg, w);
+            format_icon(cfg, &raw_icon, w.is_focused)
+        })
         .collect::<Vec<_>>()
         .join(" ");
 
@@ -312,6 +324,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 | Event::WindowClosed { .. }
                 | Event::WindowLayoutsChanged { .. }
                 | Event::WindowFocusChanged { .. }
+                | Event::WorkspacesChanged { .. }
         ) {
             rename_workspaces(&config, &mut cmd_socket)?;
         }

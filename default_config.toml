@@ -5,6 +5,11 @@
 # Default icon for applications not in the list below
 default = "*"
 
+# Format for the window icon
+#format = "{}"
+#If icons display abnormally. See [ref](https://github.com/Alexays/Waybar/issues/215#issuecomment-1114280705)
+#format = "<span font='icon'>{}</span>"
+
 # Format for the currently focused window icon
 # Use {} as a placeholder for where the icon should go.
 # If you're using waybar, you can use pango markup as below. If you're using a
