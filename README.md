@@ -1,5 +1,8 @@
 # niri-autoname-workspaces [![Nix CI](https://github.com/justbuchanan/niri-autoname-workspaces/actions/workflows/nix.yml/badge.svg)](https://github.com/justbuchanan/niri-autoname-workspaces/actions/workflows/nix.yml)
 
+> [!WARNING]
+> This project is now archived. I've ported its functionality to a waybar cffi module, which is a cleaner approach. The module is able to display icons without modifying the workspace's actual name in niri. See https://github.com/justbuchanan/waybar-niri-workspaces-enhanced.
+
 This program automatically updates [niri](https://github.com/YaLTeR/niri) workspace names to show icons for running programs in your bar. It can also apply a style (like bold or color) to the currently-focused window icon to visually show where you're at.
 
 ![screenshot](screenshot.png)
